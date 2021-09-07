@@ -269,7 +269,7 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         /// <param name="x"></param>
         /// <param name="y"></param>
         /// <returns></returns>
-        internal static ulong CalculateTileId(int zoom, int x, int y)
+        public static ulong CalculateTileId(int zoom, int x, int y)
         {
             var id = Tile.CalculateTileId(zoom);
             var width = (long) System.Math.Pow(2, zoom);

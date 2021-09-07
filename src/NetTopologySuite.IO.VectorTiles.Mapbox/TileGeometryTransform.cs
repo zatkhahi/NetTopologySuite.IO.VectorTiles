@@ -27,6 +27,7 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
             _extent = extent;
             
             var meters = WebMercatorHandler.LatLonToMeters(_tile.Top, _tile.Left);
+            // var meters = (_tile.Top, _tile.Left);
             var pixels = WebMercatorHandler.MetersToPixels(meters, tile.Zoom, (int) extent);
             _top = (long)pixels.y;
             _left = (long)pixels.x;
@@ -46,7 +47,8 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
             var lon = sequence.GetOrdinate(index, Ordinate.X);
             var lat = sequence.GetOrdinate(index, Ordinate.Y);
             
-            var meters = WebMercatorHandler.LatLonToMeters(lat, lon);
+            // var meters = WebMercatorHandler.LatLonToMeters(lat, lon);
+            var meters = (lon, lat);
             var pixels = WebMercatorHandler.MetersToPixels(meters, _tile.Zoom, (int) _extent);
             
             int localX = (int) (pixels.x - _left);
@@ -59,7 +61,7 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
             return (dx, dy);
         }
 
-        public (double longitude, double latitude) TransformInverse(int x, int y)
+        public (double longitude, double latitude) TransformInverseWGS84(int x, int y)
         {
             var globalX = _left + x;
             var globalY = _top - y;
@@ -67,6 +69,15 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
             var meters = WebMercatorHandler.PixelsToMeters((globalX, globalY), _tile.Zoom, (int) _extent);
             var coordinates = WebMercatorHandler.MetersToLatLon(meters);
             return coordinates;
+        }
+
+        public (double longitude, double latitude) TransformInverse(int x, int y)
+        {
+            var globalX = _left + x;
+            var globalY = _top - y;
+
+            var meters = WebMercatorHandler.PixelsToMeters((globalX, globalY), _tile.Zoom, (int)_extent);
+            return meters;
         }
     }
 }
