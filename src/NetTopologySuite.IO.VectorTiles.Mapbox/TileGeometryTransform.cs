@@ -9,7 +9,7 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
     /// <summary>
     /// A transformation utility from WGS84 coordinates to a local tile coordinate system in pixel
     /// </summary>
-    internal struct TileGeometryTransform
+    public struct TileGeometryTransform
     {
         private Tiles.Tile _tile;
         private uint _extent;
@@ -47,8 +47,8 @@ namespace NetTopologySuite.IO.VectorTiles.Mapbox
             var lon = sequence.GetOrdinate(index, Ordinate.X);
             var lat = sequence.GetOrdinate(index, Ordinate.Y);
             
-            // var meters = WebMercatorHandler.LatLonToMeters(lat, lon);
-            var meters = (lon, lat);
+            var meters = WebMercatorHandler.LatLonToMeters(lat, lon);
+            // var meters = (lon, lat);
             var pixels = WebMercatorHandler.MetersToPixels(meters, _tile.Zoom, (int) _extent);
             
             int localX = (int) (pixels.x - _left);
