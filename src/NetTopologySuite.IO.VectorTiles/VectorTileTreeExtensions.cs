@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using NetTopologySuite.Features;
@@ -46,7 +45,7 @@ namespace NetTopologySuite.IO.VectorTiles
         /// <param name="toFeatureZoomAndLayer">The feature, zoom and layer function.</param>
         public static void Add(this VectorTileTree tree, FeatureCollection features, ToFeatureZoomAndLayerFunc toFeatureZoomAndLayer)
         {
-            tree.Add(features.Features.ToFeaturesZoomAndLayer(toFeatureZoomAndLayer));
+            tree.Add(features.ToFeaturesZoomAndLayer(toFeatureZoomAndLayer));
         }
 
         /// <summary>
@@ -82,7 +81,19 @@ namespace NetTopologySuite.IO.VectorTiles
         /// <param name="layerName">The layer name.</param>
         public static void Add(this VectorTileTree tree, FeatureCollection features, int zoom = 14, string layerName = "default")
         {
-            tree.Add(features.Features.Select<IFeature, (IFeature feature, int zoom, string layer)>(x => (x, zoom, layer: layerName)));
+            tree.Add(features.Select<IFeature, (IFeature feature, int zoom, string layer)>(x => (x, zoom, layer: layerName)));
+        }
+
+        /// <summary>
+        /// Adds the given features to the vector tile tree, expanding it if needed.
+        /// </summary>
+        /// <param name="tree">The tree.</param>
+        /// <param name="features">The features to add.</param>
+        /// <param name="zoom">The zoom.</param>
+        /// <param name="layerName">The layer name.</param>
+        public static void Add(this VectorTileTree tree, IEnumerable<IFeature> features, int zoom = 14, string layerName = "default")
+        {
+            tree.Add(features.Select<IFeature, (IFeature feature, int zoom, string layer)>(x => (x, zoom, layer: layerName)));
         }
 
         /// <summary>
@@ -94,31 +105,57 @@ namespace NetTopologySuite.IO.VectorTiles
         {
             foreach (var (feature, zoom, layerName) in featuresZoomAndLayer)
             {
-                switch (feature.Geometry)
-                {
-                    case Point p:
-                    {
-                        // a point: easy, this is a member of just one single tile.
-                        tree.TryGetOrCreate(p.Tile(zoom)).
-                            GetOrCreate(layerName).Features.Add(new Feature(p, feature.Attributes));
-                        break;
-                    }
-                    case LineString ls:
-                    {
-                        // a linestring: harder, it could be a member of any string of tiles.
-                        foreach (var tileId in ls.Tiles(zoom))
-                        {
-                            var tile = new Tile(tileId);
-                            var layer = tree.TryGetOrCreate(tileId).GetOrCreate(layerName);
-                            var tilePolygon = tile.ToPolygon();
-                            foreach (var segment in tilePolygon.Cut(ls))
-                            {
-                                layer.Features.Add(new Feature(segment, feature.Attributes));
-                            }
-                        }
+                tree.Add(feature.Geometry, feature.Attributes, zoom, layerName);
+            }
+        }
 
-                        break;
+        private static void Add(this VectorTileTree tree, Geometry geometry, IAttributesTable attributes, int zoom,
+            string layerName)
+        {
+            switch (geometry)
+            {
+                case Point p:
+                {
+                    // a point: easy, this is a member of just one single tile.
+                    tree.TryGetOrCreate(p.Tile(zoom)).GetOrCreate(layerName).Features.Add(new Feature(p, attributes));
+                    break;
+                }
+                case LineString ls:
+                {
+                    // a linestring: harder, it could be a member of any string of tiles.
+                    foreach (var tileId in ls.Tiles(zoom))
+                    {
+                        var tile = new Tile(tileId);
+                        var layer = tree.TryGetOrCreate(tileId).GetOrCreate(layerName);
+                        var tilePolygon = tile.ToPolygon();
+                        foreach (var segment in tilePolygon.Cut(ls))
+                        {
+                            layer.Features.Add(new Feature(segment, attributes));
+                        }
                     }
+
+                    break;
+                }
+                case Polygon pg:
+                {
+                    foreach ((ulong id, IPolygonal pgPart) in PolygonTiler.Tiles(pg, zoom))
+                    {
+                        var layer = tree.TryGetOrCreate(id).GetOrCreate(layerName);
+                        var geom = (Geometry) pgPart;
+                        for (int i = 0; i < geom.NumGeometries; i++)
+                            layer.Features.Add(new Feature(geom.GetGeometryN(i), attributes));
+                    }
+
+                    break;
+                }
+                case GeometryCollection geometryCollection:
+                {
+                    foreach (var subGeometry in geometryCollection.Geometries)
+                    {
+                        tree.Add(subGeometry, attributes, zoom, layerName);
+                    }
+
+                    break;
                 }
             }
         }

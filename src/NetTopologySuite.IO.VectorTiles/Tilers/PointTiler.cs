@@ -1,5 +1,4 @@
 using NetTopologySuite.Geometries;
-using NetTopologySuite.IO.VectorTiles.Tiles;
 
 namespace NetTopologySuite.IO.VectorTiles.Tilers
 {

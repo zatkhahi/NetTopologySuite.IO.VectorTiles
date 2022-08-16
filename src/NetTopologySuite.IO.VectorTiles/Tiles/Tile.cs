@@ -19,10 +19,10 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         {
             _id = id;
 
-            var tile = Tile.CalculateTile(id);
-            this.X = tile.X;
-            this.Y = tile.Y;
-            this.Zoom = tile.Zoom;
+            var (x, y, zoom) = Tile.CalculateTile(id);
+            this.X = x;
+            this.Y = y;
+            this.Zoom = zoom;
             this.CalculateBounds();
         }
 
@@ -42,15 +42,15 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         private void CalculateBounds()
         {
             var n = Math.PI - ((2.0 * Math.PI * this.Y) / Math.Pow(2.0, this.Zoom));
-            this.Left = (float) ((this.X / Math.Pow(2.0, this.Zoom) * 360.0) - 180.0);
-            this.Top = (float) (180.0 / Math.PI * Math.Atan(Math.Sinh(n)));
+            this.Left = (double) ((this.X / Math.Pow(2.0, this.Zoom) * 360.0) - 180.0);
+            this.Top = (double) (180.0 / Math.PI * Math.Atan(Math.Sinh(n)));
 
             n = Math.PI - ((2.0 * Math.PI * (this.Y + 1)) / Math.Pow(2.0, this.Zoom));
-            this.Right = (float) (((this.X + 1) / Math.Pow(2.0, this.Zoom) * 360.0) - 180.0);
-            this.Bottom = (float) (180.0 / Math.PI * Math.Atan(Math.Sinh(n)));
+            this.Right = (double) (((this.X + 1) / Math.Pow(2.0, this.Zoom) * 360.0) - 180.0);
+            this.Bottom = (double) (180.0 / Math.PI * Math.Atan(Math.Sinh(n)));
 
-            this.CenterLat = (float) ((this.Top + this.Bottom) / 2.0);
-            this.CenterLon = (float) ((this.Left + this.Right) / 2.0);
+            this.CenterLat = (double) ((this.Top + this.Bottom) / 2.0);
+            this.CenterLon = (double) ((this.Left + this.Right) / 2.0);
         }
 
         /// <summary>
@@ -71,32 +71,32 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         /// <summary>
         /// Gets the top.
         /// </summary>
-        public float Top { get; private set; }
+        public double Top { get; private set; }
 
         /// <summary>
         /// Get the bottom.
         /// </summary>
-        public float Bottom { get; private set; }
+        public double Bottom { get; private set; }
 
         /// <summary>
         /// Get the left.
         /// </summary>
-        public float Left { get; private set; }
+        public double Left { get; private set; }
 
         /// <summary>
         /// Gets the right.
         /// </summary>
-        public float Right { get; private set; }
+        public double Right { get; private set; }
 
         /// <summary>
         /// Gets the center lat.
         /// </summary>
-        public float CenterLat { get; private set; }
+        public double CenterLat { get; private set; }
 
         /// <summary>
         /// Gets the center lon.
         /// </summary>
-        public float CenterLon { get; private set; }
+        public double CenterLon { get; private set; }
 
         /// <summary>
         /// Gets the parent tile.
@@ -138,6 +138,38 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         public override string ToString()
         {
             return $"{this.X}x-{this.Y}y@{this.Zoom}z";
+        }
+
+        /// <summary>
+        /// Returns true if the given tiles are direct neighbours.
+        /// </summary>
+        /// <param name="tileId1">The first tile id.</param>
+        /// <param name="tileId2">The second tile id.</param>
+        /// <returns></returns>
+        public static bool IsDirectNeighbour(ulong tileId1, ulong tileId2)
+        {
+            if (tileId1 == tileId2) return false;
+            
+            var tile1 = Tile.CalculateTile(tileId1);
+            var tile2 = Tile.CalculateTile(tileId2);
+
+            if (tile1.zoom != tile2.zoom)
+            {
+                return false;
+            }
+
+            if (tile1.x == tile2.x)
+            {
+                return (tile1.y == tile2.y + 1) ||
+                       (tile1.y == tile2.y - 1);
+            }
+            else if (tile1.y == tile2.y)
+            {
+                return (tile1.x == tile2.x + 1) ||
+                       (tile1.x == tile2.x - 1);
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -237,7 +269,7 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         /// <param name="x"></param>
         /// <param name="y"></param>
         /// <returns></returns>
-        private static ulong CalculateTileId(int zoom, int x, int y)
+        public static ulong CalculateTileId(int zoom, int x, int y)
         {
             var id = Tile.CalculateTileId(zoom);
             var width = (long) System.Math.Pow(2, zoom);
@@ -249,7 +281,7 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        private static Tile CalculateTile(ulong id)
+        private static (int x, int y, int zoom) CalculateTile(ulong id)
         {
             // find out the zoom level first.
             var zoom = 0;
@@ -271,7 +303,7 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
             var x = (int) (local % width);
             var y = (int) (local / width);
 
-            return new Tile(x, y, zoom);
+            return (x, y, zoom);
         }
 
         /// <summary>
@@ -423,6 +455,46 @@ namespace NetTopologySuite.IO.VectorTiles.Tiles
             var n = (int) System.Math.Floor(System.Math.Pow(2, this.Zoom));
 
             return new Tile(this.X, n - this.Y - 1, this.Zoom);
+        }
+
+        internal (double x, double y) SubCoordinates(double lat, double lon)
+        {
+            var leftOffset = lon - this.Left;
+            var bottomOffset = lat - this.Bottom;
+
+            return (this.X + (leftOffset / (this.Right - this.Left)),
+                this.Y + (bottomOffset / (this.Top - this.Bottom)));
+        }
+
+        public string ToGeoJson()
+        {
+            return $@"{{
+                ""type"": ""Polygon"",
+                ""coordinates"": [
+                  [
+                    [
+                      {this.Left},
+                      {this.Bottom}
+                    ],
+                    [
+                      {this.Right},
+                      {this.Bottom}
+                    ],
+                    [
+                      {this.Right},
+                      {this.Top}
+                    ],
+                    [
+                      {this.Left},
+                      {this.Top}
+                    ],
+                    [
+                      {this.Left},
+                      {this.Bottom}
+                    ]
+                  ]
+                ]
+              }}";
         }
     }
 }
